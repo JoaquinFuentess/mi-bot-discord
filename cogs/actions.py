@@ -14,9 +14,11 @@ class Actions(commands.Cog):
         self.bot = bot
 
     async def get_gif(self, categoria: str) -> str:
-        async with aiohttp.ClientSession() as session:
+        headers = {"User-Agent": "DiscordBotDePruebas/1.0 (https://github.com)"}
+        async with aiohttp.ClientSession(headers=headers) as session:
             async with session.get(f"{NEKOS_BEST}/{categoria}") as resp:
                 if resp.status != 200:
+                    print(f"⚠️ nekos.best devolvió status {resp.status} para {categoria}")
                     return None
                 data = await resp.json()
                 return data["results"][0]["url"]
@@ -40,10 +42,10 @@ class Actions(commands.Cog):
         else:
             texto = f"{interaction.user.mention} le {verbo} a {usuario.mention}"
 
-        embed = discord.Embed(description=texto, color=discord.Color.blurple())
-        embed.set_image(url=url)
         try:
-            await interaction.followup.send(embed=embed)
+            embed = discord.Embed(color=discord.Color.blurple())
+            embed.set_image(url=url)
+            await interaction.followup.send(content=texto, embed=embed)
         except Exception as e:
             print(f"⚠️ Error enviando embed ({categoria}): {type(e).__name__}: {e}")
             await interaction.followup.send(f"{texto}\n{url}")
@@ -62,10 +64,10 @@ class Actions(commands.Cog):
             await interaction.followup.send("❌ La API no devolvió ninguna imagen, intenta de nuevo.")
             return
 
-        embed = discord.Embed(description=f"{interaction.user.mention} {verbo}", color=discord.Color.blurple())
-        embed.set_image(url=url)
         try:
-            await interaction.followup.send(embed=embed)
+            embed = discord.Embed(color=discord.Color.blurple())
+            embed.set_image(url=url)
+            await interaction.followup.send(content=f"{interaction.user.mention} {verbo}", embed=embed)
         except Exception as e:
             print(f"⚠️ Error enviando embed ({categoria}): {type(e).__name__}: {e}")
             await interaction.followup.send(f"{interaction.user.mention} {verbo}\n{url}")
