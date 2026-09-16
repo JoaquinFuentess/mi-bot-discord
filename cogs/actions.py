@@ -86,7 +86,9 @@ class Actions(commands.Cog):
                             continue  # probamos el siguiente proveedor
 
                         data = await resp.json()
-                        return proveedor["parse"](data)
+                        gif_url = proveedor["parse"](data)
+                        print(f"✅ {proveedor['nombre']} devolvió gif para {categoria}: {gif_url}")
+                        return gif_url
                 except Exception as e:
                     print(f"⚠️ Error consultando {proveedor['nombre']} ({categoria}): {type(e).__name__}: {e}")
                     continue  # probamos el siguiente proveedor
