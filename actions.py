@@ -4,9 +4,58 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-# API pública gratuita de gifs de anime para comandos de acción.
-# Documentación: https://docs.nekos.best
-NEKOS_BEST = "https://nekos.best/api/v2"
+# --------------------------------------------------------------------------
+# APIs públicas gratuitas de gifs de anime para los comandos de acción.
+#
+# nekos.best bloquea (403) muchas IPs de hosting en la nube, como Railway.
+# Por eso ahora probamos varias APIs en orden: si la primera falla (por el
+# bloqueo, por estar caída, etc.) probamos automáticamente la siguiente.
+#
+# Cada "proveedor" tiene:
+#   - categorias: diccionario que traduce nuestra categoría interna
+#     (la que usan los comandos, ej. "feed") a la categoría que usa
+#     esa API en particular (ej. "nom").
+#   - url: función que arma el link a pedir.
+#   - parse: función que saca la URL del gif de la respuesta JSON.
+# --------------------------------------------------------------------------
+GIF_PROVIDERS = [
+    {
+        "nombre": "otakugifs",
+        "categorias": {
+            "slap": "slap", "hug": "hug", "kiss": "kiss", "pat": "pat",
+            "cuddle": "cuddle", "poke": "poke", "bite": "bite", "feed": "nom",
+            "highfive": "brofist", "punch": "punch", "tickle": "tickle",
+            "dance": "dance", "cry": "cry", "blush": "blush", "smile": "smile",
+            "laugh": "laugh", "wave": "wave", "wink": "wink", "thumbsup": "thumbsup",
+        },
+        "url": lambda cat: f"https://api.otakugifs.xyz/gif?reaction={cat}",
+        "parse": lambda data: data["url"],
+    },
+    {
+        "nombre": "waifu.pics",
+        "categorias": {
+            "slap": "slap", "hug": "hug", "kiss": "kiss", "pat": "pat",
+            "cuddle": "cuddle", "poke": "poke", "bite": "bite", "feed": "nom",
+            "highfive": "highfive", "punch": "kick",
+            "dance": "dance", "cry": "cry", "blush": "blush", "smile": "smile",
+            "wave": "wave", "wink": "wink",
+        },
+        "url": lambda cat: f"https://api.waifu.pics/sfw/{cat}",
+        "parse": lambda data: data["url"],
+    },
+    {
+        "nombre": "nekos.best",
+        "categorias": {
+            "slap": "slap", "hug": "hug", "kiss": "kiss", "pat": "pat",
+            "cuddle": "cuddle", "poke": "poke", "bite": "bite", "feed": "feed",
+            "highfive": "highfive", "punch": "punch", "tickle": "tickle",
+            "dance": "dance", "cry": "cry", "blush": "blush", "smile": "smile",
+            "laugh": "laugh", "wave": "wave", "wink": "wink",
+        },
+        "url": lambda cat: f"https://nekos.best/api/v2/{cat}",
+        "parse": lambda data: data["results"][0]["url"],
+    },
+]
 
 
 class Actions(commands.Cog):
@@ -14,14 +63,36 @@ class Actions(commands.Cog):
         self.bot = bot
 
     async def get_gif(self, categoria: str) -> str:
+        """
+        Intenta traer un gif para 'categoria' probando cada proveedor de
+        GIF_PROVIDERS en orden. Si uno falla (403, caído, etc.) sigue con
+        el siguiente automáticamente. Devuelve None solo si TODOS fallan.
+        """
         headers = {"User-Agent": "DiscordBotDePruebas/1.0 (https://github.com)"}
+
         async with aiohttp.ClientSession(headers=headers) as session:
-            async with session.get(f"{NEKOS_BEST}/{categoria}") as resp:
-                if resp.status != 200:
-                    print(f"⚠️ nekos.best devolvió status {resp.status} para {categoria}")
-                    return None
-                data = await resp.json()
-                return data["results"][0]["url"]
+            for proveedor in GIF_PROVIDERS:
+                # Si este proveedor no tiene mapeo para la categoría pedida
+                # (ej. waifu.pics no tiene "tickle"), lo saltamos.
+                categoria_api = proveedor["categorias"].get(categoria)
+                if categoria_api is None:
+                    continue
+
+                url = proveedor["url"](categoria_api)
+                try:
+                    async with session.get(url) as resp:
+                        if resp.status != 200:
+                            print(f"⚠️ {proveedor['nombre']} devolvió status {resp.status} para {categoria}")
+                            continue  # probamos el siguiente proveedor
+
+                        data = await resp.json()
+                        return proveedor["parse"](data)
+                except Exception as e:
+                    print(f"⚠️ Error consultando {proveedor['nombre']} ({categoria}): {type(e).__name__}: {e}")
+                    continue  # probamos el siguiente proveedor
+
+        # Si llegamos hasta acá, ningún proveedor funcionó.
+        return None
 
     async def send_action(self, interaction: discord.Interaction, categoria: str, verbo: str, usuario: discord.Member):
         """Comandos dirigidos a otra persona: /slap @fulano"""
@@ -42,10 +113,10 @@ class Actions(commands.Cog):
         else:
             texto = f"{interaction.user.mention} le {verbo} a {usuario.mention}"
 
-        embed = discord.Embed(description=texto, color=discord.Color.blurple())
-        embed.set_image(url=url)
         try:
-            await interaction.followup.send(embed=embed)
+            embed = discord.Embed(color=discord.Color.blurple())
+            embed.set_image(url=url)
+            await interaction.followup.send(content=texto, embed=embed)
         except Exception as e:
             print(f"⚠️ Error enviando embed ({categoria}): {type(e).__name__}: {e}")
             await interaction.followup.send(f"{texto}\n{url}")
@@ -64,10 +135,10 @@ class Actions(commands.Cog):
             await interaction.followup.send("❌ La API no devolvió ninguna imagen, intenta de nuevo.")
             return
 
-        embed = discord.Embed(description=f"{interaction.user.mention} {verbo}", color=discord.Color.blurple())
-        embed.set_image(url=url)
         try:
-            await interaction.followup.send(embed=embed)
+            embed = discord.Embed(color=discord.Color.blurple())
+            embed.set_image(url=url)
+            await interaction.followup.send(content=f"{interaction.user.mention} {verbo}", embed=embed)
         except Exception as e:
             print(f"⚠️ Error enviando embed ({categoria}): {type(e).__name__}: {e}")
             await interaction.followup.send(f"{interaction.user.mention} {verbo}\n{url}")
