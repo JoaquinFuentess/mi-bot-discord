@@ -24,9 +24,15 @@ class Actions(commands.Cog):
     async def send_action(self, interaction: discord.Interaction, categoria: str, verbo: str, usuario: discord.Member):
         """Comandos dirigidos a otra persona: /slap @fulano"""
         await interaction.response.defer()
-        url = await self.get_gif(categoria)
+        try:
+            url = await self.get_gif(categoria)
+        except Exception as e:
+            print(f"⚠️ Error en send_action ({categoria}): {type(e).__name__}: {e}")
+            await interaction.followup.send(f"❌ Error trayendo el gif: `{type(e).__name__}: {e}`")
+            return
+
         if not url:
-            await interaction.followup.send("❌ No pude traer el gif ahorita, intenta de nuevo.")
+            await interaction.followup.send("❌ La API no devolvió ninguna imagen, intenta de nuevo.")
             return
 
         if usuario.id == interaction.user.id:
@@ -36,19 +42,33 @@ class Actions(commands.Cog):
 
         embed = discord.Embed(description=texto, color=discord.Color.blurple())
         embed.set_image(url=url)
-        await interaction.followup.send(embed=embed)
+        try:
+            await interaction.followup.send(embed=embed)
+        except Exception as e:
+            print(f"⚠️ Error enviando embed ({categoria}): {type(e).__name__}: {e}")
+            await interaction.followup.send(f"{texto}\n{url}")
 
     async def send_expression(self, interaction: discord.Interaction, categoria: str, verbo: str):
         """Comandos sin objetivo: /dance, /cry, etc."""
         await interaction.response.defer()
-        url = await self.get_gif(categoria)
+        try:
+            url = await self.get_gif(categoria)
+        except Exception as e:
+            print(f"⚠️ Error en send_expression ({categoria}): {type(e).__name__}: {e}")
+            await interaction.followup.send(f"❌ Error trayendo el gif: `{type(e).__name__}: {e}`")
+            return
+
         if not url:
-            await interaction.followup.send("❌ No pude traer el gif ahorita, intenta de nuevo.")
+            await interaction.followup.send("❌ La API no devolvió ninguna imagen, intenta de nuevo.")
             return
 
         embed = discord.Embed(description=f"{interaction.user.mention} {verbo}", color=discord.Color.blurple())
         embed.set_image(url=url)
-        await interaction.followup.send(embed=embed)
+        try:
+            await interaction.followup.send(embed=embed)
+        except Exception as e:
+            print(f"⚠️ Error enviando embed ({categoria}): {type(e).__name__}: {e}")
+            await interaction.followup.send(f"{interaction.user.mention} {verbo}\n{url}")
 
     # ---------- Comandos dirigidos a otra persona ----------
 
